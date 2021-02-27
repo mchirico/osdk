@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,7 +70,23 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// Fetch the Memcached instance
 	memcached := &cachev1alpha1.Memcached{}
 	err := r.Get(ctx, req.NamespacedName, memcached)
-	fmt.Println("here..")
+	fmt.Printf("namespace: %s\n", req.Namespace)
+
+	// Can we do this?
+	ns := &corev1.Namespace{}
+	ns.Name = memcached.Name
+	if err = r.Client.Get(context.TODO(), types.NamespacedName{Name: memcached.Name}, ns); err != nil {
+		fmt.Printf("Return: %s, err: %s\n", ns.Name, err)
+
+		if strings.Contains(err.Error(), "Namespace \"memcached-sample\" not found") {
+			fmt.Printf("We create\n")
+			err = r.Client.Create(context.TODO(), ns)
+			if err != nil {
+				fmt.Printf("E")
+			}
+		}
+	}
+
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -87,6 +104,7 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	found := &appsv1.Deployment{}
 	err = r.Get(ctx, types.NamespacedName{Name: memcached.Name, Namespace: memcached.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
+
 		// Define a new deployment
 		dep := r.deploymentForMemcached(memcached)
 		log.Info("Creating a new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
